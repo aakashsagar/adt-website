@@ -1,0 +1,90 @@
+# ══════════════════════════════════════════════════════
+#  Anantadrishti Technologies — Apache Security Config
+#  LOCAL  : HTTPS block is commented out (lines 17-19)
+#  LIVE   : Uncomment lines 17-19 before deploying
+# ══════════════════════════════════════════════════════
+
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # ── Force HTTPS ── (uncomment on live server)
+    # RewriteCond %{HTTPS} off
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # ── www → non-www (optional, uncomment if needed) ──
+    # RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+    # RewriteRule ^ https://%1%{REQUEST_URI} [L,R=301]
+
+    # Block direct GET to API endpoints (forms use POST via fetch)
+    RewriteCond %{REQUEST_URI} /api/ [NC]
+    RewriteCond %{REQUEST_METHOD} !^POST$
+    RewriteRule ^ - [F,L]
+
+    # Block path traversal
+    RewriteCond %{QUERY_STRING} \.\.[/\\] [NC]
+    RewriteRule ^ - [F,L]
+
+    # Block PHP stream wrappers
+    RewriteCond %{QUERY_STRING} (php://|data://|phar://) [NC]
+    RewriteRule ^ - [F,L]
+
+    # Block known scanner user-agents
+    RewriteCond %{HTTP_USER_AGENT} (nikto|sqlmap|nmap|dirbuster|acunetix|havij|masscan) [NC]
+    RewriteRule ^ - [F,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    # ── Core security headers ──
+    Header always set X-Content-Type-Options  "nosniff"
+    Header always set X-Frame-Options         "SAMEORIGIN"
+    Header always set X-XSS-Protection        "1; mode=block"
+    Header always set Referrer-Policy         "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy      "geolocation=(), microphone=(), camera=()"
+
+    # ── Content Security Policy ──
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'"
+
+    # ── HSTS — only safe once HTTPS is live ──
+    # Uncomment on live server AFTER confirming HTTPS works
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+    # ── Hide server fingerprint ──
+    Header unset X-Powered-By
+    Header unset Server
+</IfModule>
+
+# ── Block sensitive file types ──
+<FilesMatch "\.(env|log|sql|bak|backup|sh|bat|ini|htpasswd|pem|key|crt|json|lock|yml|yaml|git)$">
+    Require all denied
+</FilesMatch>
+
+# ── Block hidden/dot files ──
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# ── Browser caching ──
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css               "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png              "access plus 3 months"
+    ExpiresByType image/jpeg             "access plus 3 months"
+    ExpiresByType image/webp             "access plus 3 months"
+    ExpiresByType image/svg+xml          "access plus 3 months"
+    ExpiresByType image/x-icon           "access plus 1 year"
+    ExpiresByType text/html              "access plus 1 hour"
+</IfModule>
+
+# ── Gzip compression ──
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript text/plain
+</IfModule>
+
+# ── Disable ETags ──
+FileETag None
+<IfModule mod_headers.c>
+    Header unset ETag
+</IfModule>
